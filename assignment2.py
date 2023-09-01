@@ -31,8 +31,9 @@ print("Device:", device)
 results_path = "./results"
 learningrate = 0.0001
 weight_decay = 0.00001
-batch_size = 128
-epochs = 10
+batch_size = 156
+epochs = 50
+seq_size = 50
 
 
 
@@ -42,7 +43,7 @@ data = pd.read_csv("./smiles_train.txt", header=None)
 all_smiles = np.asarray(data).reshape((len(data)))
 
 
-train_ids = range(64*700*2, 64*700*8)
+train_ids = range(64*700*2, 64*700*10)
 val_ids = range(len(data)//3*2, len(data)//3*2 + 64*90)
 
 train_smiles = all_smiles[train_ids]
@@ -64,16 +65,14 @@ print(f"Length of Validation-set: {len(val_smiles)}")
 #E = End
 #All characters not appearing in the periodic table
 
-chars = ['J', 'Z', 'E', 'i', 'I', '%', '6', 'N', '-', 'r', '3', 'C', 'B', '4', 'l', 'e', '+', '[', '0', '(', 'O', ')',
-         'c', ']', 'P', '7', 'H', 'p', 'n', '#', 'b', '=', '2', '5', 's', '8', 'S', '1', 'o', '9', 'Br', 'Cl', 'Se', 'Sn', 'Sb', 'Si', 'Al']
+chars = ['E', 'i', 'I', '%', '6', 'N', '-', 'r', '3', 'C', 'B', '4', 'l', 'e', '+', '[', '0', '(', 'O', ')',
+         'c', ']', 'P', '7', 'H', 'p', 'n', '#', 'b', '=', '2', '5', 's', '8', 'S', '1', 'o', '9']
 
 smi2index = dict((c, i) for i, c in enumerate(chars))
-#smi2index.update({-1 : "\n"})
 index2smi = dict((i, c) for i, c in enumerate(chars))
-#index2smi.update({"\n" : -1})
 
 
-def smiles_encoder(smiles, maxlen=120):
+def smiles_encoder(smiles, maxlen=seq_size):
     X = np.zeros((maxlen, len(chars)))
 
     for i, c in enumerate(smiles):
@@ -162,8 +161,8 @@ def smiles_decoder_gen(X):
 
 
 
-train_dat = MyData(train_smiles, smiles_encoder, seq_len=7, chars=chars)
-val_dat = MyData(val_smiles, smiles_encoder, seq_len=7, chars=chars)
+train_dat = MyData(train_smiles, smiles_encoder, seq_size=seq_size, chars=chars)
+val_dat = MyData(val_smiles, smiles_encoder, seq_size=seq_size, chars=chars)
 
 trainloader = torch.utils.data.DataLoader(train_dat, batch_size=batch_size,
                                           shuffle=True)
@@ -171,18 +170,15 @@ valloader = torch.utils.data.DataLoader(val_dat, batch_size=batch_size,
                                           shuffle=False)
 
 
-n_layers = 2
-n_hidden = 128
+n_layers = 4
+n_hidden = 256
 model = MoleculeRNN(len(chars), n_hidden, n_layers, device=device)
 #adv = Adversarial()
-#model.load_state_dict(torch.load("/home/nicole/Dokumente/AI_Life_Science/03 Notebook - Evaluation of generative models-20230427/best_model.pt"))
+#model.load_state_dict(torch.load("/home/nicole/Dokumente/AI_Life_Science/03 Notebook - Evaluation of generative models-20230427/last_model.pt"))
 #model = model.float()
 
 
-#train(model, adv, smiles_decoder_fcd, trainloader, valloader, learningrate, epochs, device, batch_size)
-
 train(model, smiles_decoder_fcd, trainloader, valloader, learningrate, epochs, device, batch_size)
-
 
 
 
@@ -196,12 +192,12 @@ generated_smiles = []
 
 while len(generated_smiles) < 10001:
 
-    out_str = gen_mol(model, all_smiles, seq_len=3, decoder=smiles_decoder_gen, encoder=smiles_encoder)
+    out_str = gen_mol(model, all_smiles, chars, decoder=smiles_decoder, encoder=smiles_encoder)
 
     try:
 
         out_smile = Chem.MolToSmiles(Chem.MolFromSmiles(out_str))
-        if not out_str in generated_smiles and len(out_str) > 5:
+        if not out_str in generated_smiles: #and len(out_str) > 5:
             generated_smiles.append(out_str)
 
         print("Yay")

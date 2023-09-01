@@ -14,29 +14,28 @@ class MoleculeRNN(nn.Module):
         self.chars = chars
         self.device = device
 
-        self.lstm1 = nn.LSTM(chars, n_hidden, n_layers,
-                             dropout=0.3, batch_first=True)
+        self.lstm1 = nn.LSTM(chars, n_hidden, n_layers, batch_first=True)
 
-        self.lstm2 = nn.LSTM(n_hidden, n_hidden, n_layers,
-                             dropout=0.1, batch_first=True)
+        #self.lstm2 = nn.LSTM(n_hidden, n_hidden, n_layers,
+                             #dropout=0.1, batch_first=True)
 
-        self.fc = nn.Linear(n_hidden*120, 120*chars)
+        self.fc = nn.Linear(n_hidden, chars)
 
     def forward(self, x, hidden):
 
-        times = x.shape[1]
+        #times = x.shape[1]
 
         x, hidden1 = self.lstm1(x, hidden)
 
-        x, hidden2 = self.lstm2(x, hidden1)
+        #x, hidden2 = self.lstm2(x, hidden1)
 
-        x = torch.flatten(x, 1, 2)
+        #x = torch.flatten(x, 1)
 
         x = self.fc(x)
 
-        x = x.view(-1, times, self.chars)
+        #x = x.view(-1, times, self.chars)
 
-        return x, hidden2
+        return x, hidden1
 
 
     def init_hidden(self, x):

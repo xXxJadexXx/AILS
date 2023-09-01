@@ -4,13 +4,43 @@ import numpy as np
 import copy
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import Dataset
 from utils import canonicalize_smiles
 
 
 
-
 class MyData(Dataset):
+
+    def __init__(self, smiles, encoder, seq_size, chars):
+
+        self.smiles_raw = smiles
+        self.chars = chars
+        self.seq_size = seq_size
+
+        self.encoder = encoder
+
+        all = [smile + "E" for smile in smiles]
+
+        self.smiles = "".join(all)
+
+
+    def __len__(self):
+        return len(self.smiles)//self.seq_size
+
+    def __getitem__(self, idx):
+
+        rand_idx = np.random.randint(0, len(self.smiles) - self.seq_size - 1)
+        x = self.smiles[rand_idx: rand_idx + self.seq_size]
+        y = self.smiles[rand_idx + 1: rand_idx + 1 + self.seq_size]
+
+        x = self.encoder(x)
+        y = self.encoder(y)
+
+        return x, y, rand_idx
+
+
+class MyDataOld(Dataset):
 
     def __init__(self, smiles, encoder, seq_len, chars):
 
@@ -100,7 +130,58 @@ def smile_edit(out_str):
 
     return out_str
 
-def gen_mol(model, smiles, seq_len, decoder, encoder):
+
+
+def gen_mol(model, data, chars, decoder, encoder):
+
+
+    model = model.float()
+
+
+    with torch.no_grad():
+
+        sample = data[np.random.randint(0, len(data))]
+
+        sample = sample[0:3]
+        mol_str = sample[:]
+        sample = torch.tensor(encoder(sample)).unsqueeze(0)
+        mol = [sample[0]]
+
+        hidden = [torch.zeros(model.n_layers, 1, model.n_hidden),
+                  torch.zeros(model.n_layers, 1, model.n_hidden)]
+
+        eot_idx = encoder(["E"])
+
+        for _ in range(50):
+
+            model_in = mol[-1].unsqueeze(0)
+
+            logits, hidden = model(model_in.float(), hidden)  # Get model's predictions
+            logits = logits[:, -1, :] / 1.2  # Get last step logits & apply temperature
+
+            probs = F.softmax(logits)  # Convert logits to probabilities
+            idx = torch.multinomial(probs, num_samples=1)  # Randomly sample next token
+
+            letter = chars[idx]
+            # Stop if model predicts end-of-sequence token
+            # End Token index = 0
+            if letter == "E":
+                break
+
+            mol_str = mol_str + letter
+
+            mol.append(torch.tensor(encoder(letter)))  # Add sampled token to the sequence
+
+
+    mol_str  = smile_edit(mol_str)
+
+    return mol_str
+
+
+
+
+
+def gen_mol_Old(model, smiles, seq_len, decoder, encoder):
 
     model = model.float()
     batch = 1
